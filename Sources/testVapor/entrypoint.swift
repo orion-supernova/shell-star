@@ -8,8 +8,20 @@ enum Entrypoint {
     static func main() async throws {
         var env = try Environment.detect()
         try LoggingSystem.bootstrap(from: &env)
-        
+
+        // Interactive server setup
+        print("╔════════════════════════════════════════╗")
+        print("║      Chat Server - Vapor Edition      ║")
+        print("╚════════════════════════════════════════╝")
+        print("")
+
+        // Get port from user or use default
+        let port = getPort()
+
         let app = try await Application.make(env)
+
+        // Set the port
+        app.http.server.configuration.port = port
 
         // This attempts to install NIO as the Swift Concurrency global executor.
         // You can enable it if you'd like to reduce the amount of context switching between NIO and Swift Concurrency.
@@ -20,6 +32,13 @@ enum Entrypoint {
         
         do {
             try await configure(app)
+
+            // Show startup message
+            print("🚀 Server starting on http://\(app.http.server.configuration.hostname):\(port)")
+            print("📡 WebSocket endpoint: ws://\(app.http.server.configuration.hostname):\(port)/ws")
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            print("")
+
             try await app.execute()
         } catch {
             app.logger.report(error: error)
@@ -27,5 +46,33 @@ enum Entrypoint {
             throw error
         }
         try await app.asyncShutdown()
+    }
+
+    static func getPort() -> Int {
+        let defaultPort = 3169
+
+        print("Enter server port (press Enter for default \(defaultPort)):")
+        print("  💡 Common ports: 3169 (default), 8080, 3000")
+        print("")
+
+        guard let input = readLine(strippingNewline: true) else {
+            print("✅ Using default port: \(defaultPort)\n")
+            return defaultPort
+        }
+
+        let trimmed = input.trimmingCharacters(in: .whitespaces)
+
+        if trimmed.isEmpty {
+            print("✅ Using default port: \(defaultPort)\n")
+            return defaultPort
+        }
+
+        guard let port = Int(trimmed), port >= 1024, port <= 65535 else {
+            print("⚠️  Invalid port. Using default: \(defaultPort)\n")
+            return defaultPort
+        }
+
+        print("✅ Using port: \(port)\n")
+        return port
     }
 }
