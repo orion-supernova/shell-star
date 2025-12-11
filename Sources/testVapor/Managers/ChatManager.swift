@@ -8,6 +8,12 @@ actor ChatManager {
     private var messageHistory: [UUID: [Message]] = [:] // roomId: [messages]
     private let maxMessagesPerRoom = 100 // Keep last 100 messages per room
 
+    // Heartbeat tracking
+    private var userHeartbeats: [UUID: [UUID: Int]] = [:] // roomId: [userId: missedHeartbeats]
+    private let maxMissedHeartbeats = 3
+    private var heartbeatTask: Task<Void, Never>?
+    private var isHeartbeatStarted = false
+
     private init() {}
     
     // MARK: - Room Management
@@ -34,6 +40,7 @@ actor ChatManager {
         }
         webSockets.removeValue(forKey: id)
         messageHistory.removeValue(forKey: id) // Clear message history
+        userHeartbeats.removeValue(forKey: id) // Clear heartbeat tracking
         rooms.removeValue(forKey: id)
     }
     
@@ -92,16 +99,29 @@ actor ChatManager {
     }
     
     // MARK: - WebSocket Management
-    
+
     func addWebSocket(_ ws: WebSocket, userId: UUID, roomId: UUID) {
         if webSockets[roomId] == nil {
             webSockets[roomId] = [:]
         }
         webSockets[roomId]?[userId] = ws
+
+        // Initialize heartbeat tracking
+        if userHeartbeats[roomId] == nil {
+            userHeartbeats[roomId] = [:]
+        }
+        userHeartbeats[roomId]?[userId] = 0 // Reset missed heartbeats
+
+        // Start heartbeat monitor on first WebSocket connection
+        if !isHeartbeatStarted {
+            startHeartbeatMonitor()
+            isHeartbeatStarted = true
+        }
     }
-    
+
     func removeWebSocket(userId: UUID, roomId: UUID) {
         webSockets[roomId]?.removeValue(forKey: userId)
+        userHeartbeats[roomId]?.removeValue(forKey: userId)
     }
     
     func broadcast(message: Message, to roomId: UUID, excludingUserId: UUID? = nil) async {
@@ -153,18 +173,70 @@ actor ChatManager {
 
         return messages
     }
-    
+
     func sendToUser(message: Message, userId: UUID, in roomId: UUID) async {
         guard let socket = webSockets[roomId]?[userId] else { return }
-        
+
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        
+
         guard let data = try? encoder.encode(message),
               let text = String(data: data, encoding: .utf8) else {
             return
         }
-        
+
         try? await socket.send(text)
+    }
+
+    // MARK: - Heartbeat Monitor
+
+    private func startHeartbeatMonitor() {
+        heartbeatTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(10))
+                await checkHeartbeats()
+            }
+        }
+    }
+
+    private func checkHeartbeats() async {
+        for (roomId, sockets) in webSockets {
+            for (userId, socket) in sockets {
+                // Try to ping the socket
+                do {
+                    try await socket.send("ping")
+                    // Reset missed heartbeats on successful ping
+                    userHeartbeats[roomId]?[userId] = 0
+                } catch {
+                    // Failed to ping, increment missed heartbeats
+                    let currentMissed = userHeartbeats[roomId]?[userId] ?? 0
+                    userHeartbeats[roomId]?[userId] = currentMissed + 1
+
+                    // Check if max missed heartbeats exceeded
+                    if currentMissed + 1 >= maxMissedHeartbeats {
+                        print("⚠️  User \(userId) in room \(roomId) failed \(maxMissedHeartbeats) heartbeats, removing...")
+
+                        // Close the socket
+                        try? await socket.close()
+
+                        // Remove user from room
+                        if let user = try? await leaveRoom(roomId: roomId, userId: userId) {
+                            let message = Message(
+                                roomId: roomId,
+                                userId: user.id,
+                                username: user.username,
+                                content: "\(user.username) left the room (connection timeout)",
+                                type: .userLeft
+                            )
+                            await broadcast(message: message, to: roomId)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    deinit {
+        heartbeatTask?.cancel()
     }
 }
