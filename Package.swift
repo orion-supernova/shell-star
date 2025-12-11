@@ -2,9 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "testVapor",
+    name: "shell-star",
     platforms: [
        .macOS(.v13)
+    ],
+    products: [
+        .executable(name: "shell-star", targets: ["shell-star"])
     ],
     dependencies: [
         // 💧 A server-side Swift web framework.
@@ -14,7 +17,7 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "testVapor",
+            name: "shell-star",
             dependencies: [
                 .product(name: "Vapor", package: "vapor"),
                 .product(name: "NIOCore", package: "swift-nio"),
@@ -23,9 +26,9 @@ let package = Package(
             swiftSettings: swiftSettings
         ),
         .testTarget(
-            name: "testVaporTests",
+            name: "shell-starTests",
             dependencies: [
-                .target(name: "testVapor"),
+                .target(name: "shell-star"),
                 .product(name: "VaporTesting", package: "vapor"),
             ],
             swiftSettings: swiftSettings

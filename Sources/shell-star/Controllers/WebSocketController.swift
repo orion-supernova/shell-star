@@ -35,23 +35,9 @@ struct WebSocketController: RouteCollection {
                 await ChatManager.shared.removeWebSocket(userId: userId, roomId: roomId)
                 req.logger.info("WebSocket disconnected: User \(user.username) from room \(roomId)")
 
-                // Remove user from room after disconnect
-                do {
-                    if let removedUser = try await ChatManager.shared.leaveRoom(roomId: roomId, userId: userId) {
-                        // Broadcast user left message
-                        let message = Message(
-                            roomId: roomId,
-                            userId: removedUser.id,
-                            username: removedUser.username,
-                            content: "\(removedUser.username) left the room (disconnected)",
-                            type: .userLeft
-                        )
-                        await ChatManager.shared.broadcast(message: message, to: roomId)
-                        req.logger.info("User \(removedUser.username) removed from room \(roomId) after disconnect")
-                    }
-                } catch {
-                    req.logger.error("Failed to remove user \(userId) from room \(roomId): \(error)")
-                }
+                // Don't remove user immediately - let heartbeat monitor handle it
+                // This gives users a chance to reconnect (up to 30 seconds)
+                req.logger.info("User \(user.username) marked as disconnected, waiting for reconnect or timeout...")
             }
         }
     }

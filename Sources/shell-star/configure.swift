@@ -2,10 +2,9 @@ import Vapor
 
 // configures your application
 public func configure(_ app: Application) async throws {
-    // Configure server
+    // Configure server hostname (port is set in entrypoint.swift)
     app.http.server.configuration.hostname = "0.0.0.0"
-    app.http.server.configuration.port = 8080
-    
+
     // Enable CORS if needed
     let corsConfiguration = CORSMiddleware.Configuration(
         allowedOrigin: .all,

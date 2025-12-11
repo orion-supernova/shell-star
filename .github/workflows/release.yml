@@ -1,0 +1,136 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Build for Apple Silicon
+        run: swift build -c release --arch arm64
+
+      - name: Build for Intel
+        run: swift build -c release --arch x86_64
+
+      - name: Create universal binary
+        run: |
+          mkdir -p .build/universal
+          lipo -create \
+            .build/arm64-apple-macosx/release/shell-star \
+            .build/x86_64-apple-macosx/release/shell-star \
+            -output .build/universal/shell-star
+
+      - name: Create tarball
+        run: |
+          mkdir -p shell-star-${{ steps.version.outputs.VERSION }}
+          cp .build/universal/shell-star shell-star-${{ steps.version.outputs.VERSION }}/
+          tar -czf shell-star-${{ steps.version.outputs.VERSION }}.tar.gz shell-star-${{ steps.version.outputs.VERSION }}
+
+      - name: Generate checksum
+        run: shasum -a 256 shell-star-${{ steps.version.outputs.VERSION }}.tar.gz > shell-star-${{ steps.version.outputs.VERSION }}.tar.gz.sha256
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shell-star-macos
+          path: |
+            shell-star-${{ steps.version.outputs.VERSION }}.tar.gz
+            shell-star-${{ steps.version.outputs.VERSION }}.tar.gz.sha256
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    container: swift:6.0
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Build for Linux
+        run: swift build -c release
+
+      - name: Create tarball
+        run: |
+          mkdir -p shell-star-${{ steps.version.outputs.VERSION }}-linux
+          cp .build/release/shell-star shell-star-${{ steps.version.outputs.VERSION }}-linux/
+          tar -czf shell-star-${{ steps.version.outputs.VERSION }}-linux.tar.gz shell-star-${{ steps.version.outputs.VERSION }}-linux
+
+      - name: Generate checksum
+        run: shasum -a 256 shell-star-${{ steps.version.outputs.VERSION }}-linux.tar.gz > shell-star-${{ steps.version.outputs.VERSION }}-linux.tar.gz.sha256
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shell-star-linux
+          path: |
+            shell-star-${{ steps.version.outputs.VERSION }}-linux.tar.gz
+            shell-star-${{ steps.version.outputs.VERSION }}-linux.tar.gz.sha256
+
+  release:
+    needs: [build-macos, build-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Set version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: shell-star-macos
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: shell-star-linux
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            shell-star-${{ steps.version.outputs.VERSION }}.tar.gz
+            shell-star-${{ steps.version.outputs.VERSION }}.tar.gz.sha256
+            shell-star-${{ steps.version.outputs.VERSION }}-linux.tar.gz
+            shell-star-${{ steps.version.outputs.VERSION }}-linux.tar.gz.sha256
+          body: |
+            ## shell-star v${{ steps.version.outputs.VERSION }}
+
+            WebSocket chat server powered by Vapor
+
+            ### Installation
+
+            **macOS via Homebrew:**
+            ```bash
+            brew install yourusername/tap/shell-star
+            ```
+
+            **macOS Manual:**
+            ```bash
+            curl -L https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.VERSION }}/shell-star-${{ steps.version.outputs.VERSION }}.tar.gz | tar xz
+            sudo mv shell-star-${{ steps.version.outputs.VERSION }}/shell-star /usr/local/bin/
+            ```
+
+            **Linux:**
+            ```bash
+            curl -L https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.VERSION }}/shell-star-${{ steps.version.outputs.VERSION }}-linux.tar.gz | tar xz
+            sudo mv shell-star-${{ steps.version.outputs.VERSION }}-linux/shell-star /usr/local/bin/
+            ```
+
+            ### Usage
+            ```bash
+            shell-star  # Will prompt for port (default 3169)
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
