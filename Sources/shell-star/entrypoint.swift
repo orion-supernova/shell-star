@@ -11,7 +11,8 @@ enum Entrypoint {
 
         // Interactive server setup
         print("╔════════════════════════════════════════╗")
-        print("║      Chat Server - Vapor Edition      ║")
+        print("║          shell-star v1.0              ║")
+        print("║    WebSocket Chat Server (Vapor)      ║")
         print("╚════════════════════════════════════════╝")
         print("")
 
