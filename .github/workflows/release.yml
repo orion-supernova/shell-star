@@ -86,6 +86,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      version: ${{ steps.version.outputs.VERSION }}
     steps:
       - name: Set version
         id: version
@@ -139,3 +141,16 @@ jobs:
             ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-homebrew:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update Homebrew tap
+        uses: mislav/bump-homebrew-formula-action@v3
+        with:
+          formula-name: shell-star
+          homebrew-tap: orion-supernova/homebrew-tap
+          download-url: https://github.com/orion-supernova/shell-star/releases/download/v${{ needs.release.outputs.version }}/shell-star-${{ needs.release.outputs.version }}.tar.gz
+        env:
+          COMMITTER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
