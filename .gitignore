@@ -1,12 +1,21 @@
-.DS_Store
-/.build
+# Build artifacts
+.build/
 /Packages
+.swiftpm/
+
+# Xcode
 xcuserdata/
 DerivedData/
-.swiftpm/configuration/registries.json
-.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
-.netrc
-Package.resolved
 *.xcodeproj
+*.xcuserstate
+
+# macOS
+.DS_Store
+
+# IDE
 .vscode/
 .idea/
+
+# Other
+.netrc
+Package.resolved

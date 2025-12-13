@@ -1,7 +1,7 @@
 import Vapor
 
 struct WebSocketController: RouteCollection {
-    func boot(routes: RoutesBuilder) throws {
+    func boot(routes: any RoutesBuilder) throws {
         routes.webSocket("ws", ":roomId", ":userId", onUpgrade: handleWebSocket)
     }
     

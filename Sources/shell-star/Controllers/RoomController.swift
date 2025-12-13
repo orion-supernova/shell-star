@@ -1,7 +1,7 @@
 import Vapor
 
 struct RoomController: RouteCollection {
-    func boot(routes: RoutesBuilder) throws {
+    func boot(routes: any RoutesBuilder) throws {
         let rooms = routes.grouped("api", "rooms")
 
         rooms.get(use: listRooms)
