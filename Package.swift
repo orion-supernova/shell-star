@@ -38,4 +38,5 @@ let package = Package(
 
 var swiftSettings: [SwiftSetting] { [
     .enableUpcomingFeature("ExistentialAny"),
+    .unsafeFlags(["-Xfrontend", "-disable-round-trip-debug-types"], .when(configuration: .release)),
 ] }
