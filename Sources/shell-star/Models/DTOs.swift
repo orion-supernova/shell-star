@@ -4,13 +4,26 @@ import Vapor
 struct CreateRoomRequest: Content {
     let name: String
     let password: String?
-    
+
     func validate() throws {
-        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
             throw Abort(.badRequest, reason: "Room name cannot be empty")
         }
-        guard name.count <= 50 else {
-            throw Abort(.badRequest, reason: "Room name too long (max 50 characters)")
+        guard trimmedName.count >= 2 else {
+            throw Abort(.badRequest, reason: "Room name too short (min 2 characters)")
+        }
+        guard trimmedName.count <= 100 else {
+            throw Abort(.badRequest, reason: "Room name too long (max 100 characters)")
+        }
+        // Validate password if provided
+        if let pwd = password, !pwd.isEmpty {
+            guard pwd.count >= 4 else {
+                throw Abort(.badRequest, reason: "Password too short (min 4 characters)")
+            }
+            guard pwd.count <= 128 else {
+                throw Abort(.badRequest, reason: "Password too long (max 128 characters)")
+            }
         }
     }
 }
@@ -18,26 +31,36 @@ struct CreateRoomRequest: Content {
 struct JoinRoomRequest: Content {
     let username: String
     let password: String?
-    
+
     func validate() throws {
-        guard !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
             throw Abort(.badRequest, reason: "Username cannot be empty")
         }
-        guard username.count <= 30 else {
-            throw Abort(.badRequest, reason: "Username too long (max 30 characters)")
+        guard trimmedUsername.count >= 2 else {
+            throw Abort(.badRequest, reason: "Username too short (min 2 characters)")
+        }
+        guard trimmedUsername.count <= 50 else {
+            throw Abort(.badRequest, reason: "Username too long (max 50 characters)")
+        }
+        // Basic validation: no special characters that could break things
+        let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: " -_"))
+        guard trimmedUsername.unicodeScalars.allSatisfy({ allowedCharacters.contains($0) }) else {
+            throw Abort(.badRequest, reason: "Username contains invalid characters (only letters, numbers, spaces, -, _ allowed)")
         }
     }
 }
 
 struct SendMessageRequest: Content {
     let content: String
-    
+
     func validate() throws {
-        guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedContent.isEmpty else {
             throw Abort(.badRequest, reason: "Message content cannot be empty")
         }
-        guard content.count <= 1000 else {
-            throw Abort(.badRequest, reason: "Message too long (max 1000 characters)")
+        guard trimmedContent.count <= 2000 else {
+            throw Abort(.badRequest, reason: "Message too long (max 2000 characters)")
         }
     }
 }

@@ -135,14 +135,33 @@ actor ChatManager {
 
         guard let data = try? encoder.encode(message),
               let text = String(data: data, encoding: .utf8) else {
+            print("❌ Failed to encode message for room \(roomId)")
             return
         }
+
+        // Track failed sends to remove stale connections
+        var failedUserIds: [UUID] = []
 
         for (userId, socket) in sockets {
             if let excludingUserId = excludingUserId, userId == excludingUserId {
                 continue
             }
-            try? await socket.send(text)
+
+            do {
+                try await socket.send(text)
+            } catch {
+                print("⚠️  Failed to send message to user \(userId) in room \(roomId): \(error)")
+                failedUserIds.append(userId)
+            }
+        }
+
+        // Clean up failed connections
+        for userId in failedUserIds {
+            webSockets[roomId]?.removeValue(forKey: userId)
+            // Increment missed heartbeats to trigger cleanup on next heartbeat check
+            if let currentMissed = userHeartbeats[roomId]?[userId] {
+                userHeartbeats[roomId]?[userId] = currentMissed + 1
+            }
         }
     }
 
@@ -200,7 +219,10 @@ actor ChatManager {
     }
 
     private func checkHeartbeats() async {
-        for (roomId, sockets) in webSockets {
+        // Create a snapshot to avoid modifying dictionary while iterating
+        let socketsSnapshot = webSockets
+
+        for (roomId, sockets) in socketsSnapshot {
             for (userId, socket) in sockets {
                 // Try to ping the socket
                 do {
